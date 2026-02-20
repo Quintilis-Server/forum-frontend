@@ -1,6 +1,7 @@
 import type {BaseProps, PageState} from "../types/PageTypes.ts";
 import {BaseComponent} from "../components/BaseComponent.tsx";
 import type {BaseException} from "../exceptions/BaseException.ts";
+import {Header} from "../components/Header.tsx";
 
 export abstract class BasePage<P extends BaseProps, S extends PageState> extends BaseComponent<P, S>{
     public constructor(props: P, initialState: S);
@@ -47,7 +48,7 @@ export abstract class BasePage<P extends BaseProps, S extends PageState> extends
     render(){
         return(
             <>
-                {/*<Header/>*/}
+                <Header/>
                 {this.state.err ? (
                     this.getError(this.state.err)
                 ) : this.renderContent()}
