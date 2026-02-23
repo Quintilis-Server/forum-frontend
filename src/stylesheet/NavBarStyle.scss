@@ -27,6 +27,13 @@
             text-decoration: none;
             display: flex;
             align-items: center;
+            flex-direction: column;
+
+            span{
+                width: max-content;
+                height: max-content;
+            }
+
             .logo-letter{
                 color: var(--accent);
                 font-size: 2rem;
@@ -36,6 +43,11 @@
             .logo-text {
                 color: var(--text-secondary);
                 font-weight: 300;
+            }
+
+            .logo-bottom {
+                color: var(--text-muted);
+                font-size: 1.4rem;
             }
         }
     }

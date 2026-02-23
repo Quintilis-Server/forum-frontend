@@ -5,6 +5,7 @@ export interface Category{
     description: string
     display_order: number
     created_at: Date
+    topics: Topic[]
 }
 export interface Topic{
     id: string

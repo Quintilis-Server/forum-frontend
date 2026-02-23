@@ -20,7 +20,7 @@ export class AuthService {
         params.append('response_type', 'code');
         params.append('client_id', this.CLIENT_ID);
         params.append('redirect_uri', this.REDIRECT_URI);
-        params.append('scope', 'openid read_profile'); // Atualizado conforme application.yml
+        params.append('scope', 'openid read_profile offline_access'); // Atualizado conforme application.yml
         // params.append('state', 'some_random_state'); // Recomendado para segurança contra CSRF
 
         return `${API_OAUTH2_ROUTES}/authorize?${params.toString()}`;
@@ -131,6 +131,53 @@ export class AuthService {
         }
     }
 
+    /**
+     * Tenta fazer refresh do token silenciosamente, sem redirecionar.
+     * Retorna true se conseguiu renovar, false caso contrário.
+     */
+    static async silentRefresh(): Promise<boolean> {
+        const refreshToken = localStorage.getItem("refreshToken");
+        if (!refreshToken) return false;
+
+        try {
+            const params = new URLSearchParams();
+            params.append('grant_type', 'refresh_token');
+            params.append('refresh_token', refreshToken);
+
+            const authHeader = 'Basic ' + btoa(`${this.CLIENT_ID}:${this.CLIENT_SECRET}`);
+
+            const response = await axios.post<OAuth2TokenResponse>(
+                `${API_OAUTH2_ROUTES}/token`,
+                params,
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': authHeader
+                    }
+                }
+            );
+
+            if (response.data && response.data.access_token) {
+                this.saveTokens(response.data);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Silent refresh failed", error);
+            // IMPORTANTE: Diferente do admin, o fórum não faz logout agressivo aqui
+            this.clearSession();
+            return false;
+        }
+    }
+
+    /**
+     * Limpa a sessão local sem redirecionar.
+     * Usado quando a sessão expira silenciosamente.
+     */
+    static clearSession(): void {
+        this.clearTokens();
+    }
+
     static logout(): void {
         this.clearTokens();
         // Redireciona para o logout do Auth Server para invalidar a sessão
@@ -153,7 +200,15 @@ export class AuthService {
         return true;
     }
 
-    private static saveTokens(response: OAuth2TokenResponse): void {
+    static isTokenExpiringSoon(): boolean {
+        const expiresAt = localStorage.getItem("expiresAt");
+        if (!expiresAt) return true;
+
+        // Verifica se expira em menos de 2 minutos (120000 ms)
+        return parseInt(expiresAt) - Date.now() < 120000;
+    }
+
+    static saveTokens(response: OAuth2TokenResponse): void {
         localStorage.setItem("accessToken", response.access_token);
         if (response.refresh_token) {
             localStorage.setItem("refreshToken", response.refresh_token);
@@ -170,3 +225,79 @@ export class AuthService {
         localStorage.removeItem("user");
     }
 }
+
+// Global Axios Interceptor to add Bearer token to requests
+axios.interceptors.request.use(config => {
+    const token = AuthService.getAccessToken();
+    if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+// Response interceptor: auto-refresh on 401 and retry
+let isRefreshing = false;
+let failedQueue: Array<{
+    resolve: (value: unknown) => void;
+    reject: (reason: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown | null) => {
+    failedQueue.forEach(({ resolve, reject }) => {
+        if (error) {
+            reject(error);
+        } else {
+            resolve(undefined);
+        }
+    });
+    failedQueue = [];
+};
+
+axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // Only handle 401 and only retry once
+        if (error.response?.status !== 401 || originalRequest._retry) {
+            return Promise.reject(error);
+        }
+
+        // Don't intercept token endpoint requests (avoid infinite loop)
+        if (originalRequest.url?.includes('/oauth2/token')) {
+            return Promise.reject(error);
+        }
+
+        originalRequest._retry = true;
+
+        if (isRefreshing) {
+            // Another refresh is in progress — queue this request
+            return new Promise((resolve, reject) => {
+                failedQueue.push({ resolve, reject });
+            }).then(() => {
+                // Refresh succeeded — update the header and retry
+                originalRequest.headers.Authorization = `Bearer ${AuthService.getAccessToken()}`;
+                return axios(originalRequest);
+            });
+        }
+
+        isRefreshing = true;
+
+        try {
+            const success = await AuthService.silentRefresh();
+            if (success) {
+                processQueue(null);
+                originalRequest.headers.Authorization = `Bearer ${AuthService.getAccessToken()}`;
+                return axios(originalRequest);
+            } else {
+                processQueue(error);
+                return Promise.reject(error);
+            }
+        } catch (refreshError) {
+            processQueue(refreshError);
+            return Promise.reject(refreshError);
+        } finally {
+            isRefreshing = false;
+        }
+    }
+);

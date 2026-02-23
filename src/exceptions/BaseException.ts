@@ -1,4 +1,4 @@
-import type {ErrorCode} from "../types/ApiResponseType.ts";
+import type {ApiResponseType, ErrorCode} from "../types/ApiResponseType.ts";
 
 export class BaseException extends Error {
     protected readonly errCode: ErrorCode
@@ -23,6 +23,13 @@ export class BaseException extends Error {
             }
             this.errCode = errCode
         }
+    }
+
+    public static fromResponse<T>(apiResponse: ApiResponseType<T>): BaseException{
+        return new BaseException(
+            apiResponse.errorCode,
+            apiResponse.message,
+        )
     }
 
     public getErrCode(): ErrorCode{

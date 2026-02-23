@@ -13,21 +13,21 @@ export class Header extends BaseComponent {
     declare context: React.ContextType<typeof UserContext>;
 
     render() {
-        const { isLoggedIn, isAdmin, user, logout } = this.context;
+        const { isLoggedIn, user, logout } = this.context;
 
         return (
             <nav className="navbar">
                 <div className="navbar-inner container">
                     <a className="nav-logo" href="/">
-                        <span className="logo-letter">Q</span>
-                        <span className="logo-text">uintilis</span>
+                        <div>
+                            <span className="logo-letter">Q</span>
+                            <span className="logo-text">uintilis</span>
+                        </div>
+                        <span className="logo-bottom">Forum</span>
                     </a>
 
 
                     <div className={`nav-links`}>
-                        {isLoggedIn && isAdmin && (
-                            <a href={"/admin/category/new"}>Criar Categorias</a>
-                        )}
                         <a href="/categories">Categorias</a>
                         <a href="/topics">Top Posts</a>
                         <a href="/news">Notícias</a>

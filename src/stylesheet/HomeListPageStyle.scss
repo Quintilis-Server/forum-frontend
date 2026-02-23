@@ -1,0 +1,30 @@
+.main-home {
+    padding: 1.5em;
+    background: var(--bg-secondary);
+    width: 65em;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 1.5em;
+    border-radius: 10px;
+
+    .title {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+        }
+    }
+
+    .list {
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    }
+}

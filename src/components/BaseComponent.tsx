@@ -1,18 +1,50 @@
-import type {BaseState} from "../types/PageTypes.ts";
+import type { BaseState } from "../types/PageTypes.ts";
 import * as React from "react";
-import axios, {AxiosError, type AxiosResponse} from "axios";
-import type {ApiResponseType} from "../types/ApiResponseType.ts";
-import {BaseException} from "../exceptions/BaseException.ts";
-import {InternalServerErrorException} from "../exceptions/InternalServerErrorException.ts";
+import axios, { AxiosError, type AxiosResponse } from "axios";
+import type { ApiResponseType } from "../types/ApiResponseType.ts";
+import { BaseException } from "../exceptions/BaseException.ts";
+import { InternalServerErrorException } from "../exceptions/InternalServerErrorException.ts";
 import { EncryptException } from "../exceptions/EncryptException.ts";
-import {JSEncrypt} from "jsencrypt";
+import { JSEncrypt } from "jsencrypt";
+import { API_URL } from "../Consts.ts";
 
-export class BaseComponent<P = object, S extends BaseState = BaseState> extends React.PureComponent<P, S>{
+export class BaseComponent<P = object, S extends BaseState = BaseState> extends React.PureComponent<P, S> {
+
+    private pendingAsyncCount = 0;
+
+    private startLoading() {
+        this.pendingAsyncCount++;
+        if (this.pendingAsyncCount === 1) {
+            this.setState({ loading: true });
+        }
+    }
+
+    private stopLoading() {
+        this.pendingAsyncCount--;
+        if (this.pendingAsyncCount <= 0) {
+            this.pendingAsyncCount = 0;
+            this.setState({ loading: false });
+        }
+    }
+
     protected async get<T>(url: string, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
         const headers = {
             ...header,
         }
-        return await axios.get<ApiResponseType<T>>(url, {headers})
+        this.startLoading();
+        try {
+            return await axios.get<ApiResponseType<T>>(url, { headers });
+        } finally {
+            this.stopLoading();
+        }
+    }
+
+    protected async getFromApi<T>(url: string, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
+        const headers = {
+            "Content-Type": "application/json",
+            ...header,
+        }
+        return await this.get(`${API_URL}/api${url}`, headers);
     }
 
     protected async post<T, B>(url: string, body: B, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
@@ -20,25 +52,40 @@ export class BaseComponent<P = object, S extends BaseState = BaseState> extends 
             "Content-Type": "application/json",
             ...header,
         }
-        return await axios.post(url, body, {headers})
+        this.startLoading();
+        try {
+            return await axios.post(url, body, { headers });
+        } finally {
+            this.stopLoading();
+        }
+    }
+
+    protected async postToApi<T, B>(url: string, body: B, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
+        const headers = {
+            "Content-Type": "application/json",
+            ...header,
+        }
+        return await this.post(`${API_URL}/api${url}`, body, headers);
     }
 
     protected async executeAsync<T>(task: () => Promise<T>): Promise<T | null> {
-        this.setState({loading: true})
-        try{
+        this.startLoading();
+        try {
             const result = await task();
-            this.setState({err: undefined,loading: false})
+            this.setState({ err: undefined })
             return result
-        }catch(error: unknown){
+        } catch (error: unknown) {
             const exception = this.handleError(error)
-            this.setState({err: exception, loading: false} as unknown as Pick<S, "err" | "loading">)
+            this.setState({ err: exception } as unknown as Pick<S, "err">)
             return null
+        } finally {
+            this.stopLoading();
         }
     }
 
     protected async encryptData<T>(data: T): Promise<string> {
         const publicKey = await this.get<string>("/keys/public")
-        if(!publicKey||!publicKey.data.success){
+        if (!publicKey || !publicKey.data.success) {
             throw new EncryptException("Falha ao obter chave publica")
         }
 
@@ -47,19 +94,19 @@ export class BaseComponent<P = object, S extends BaseState = BaseState> extends 
         const stringData = JSON.stringify(data)
         const encryptedData = jse.encrypt(stringData)
 
-        if(encryptedData === false){
+        if (encryptedData === false) {
             throw new EncryptException("Falha ao encrypt")
         }
         return encryptedData
     }
 
-    private handleError(error: unknown){
-        if(axios.isAxiosError(error)){
+    private handleError(error: unknown) {
+        if (axios.isAxiosError(error)) {
             const apiError = error as AxiosError<ApiResponseType<string>>
-            if(apiError.response && apiError.response.data){
+            if (apiError.response && apiError.response.data) {
                 const errData = apiError.response.data
-                throw new BaseException(errData.errorCode, errData.message,undefined)
-            }else{
+                throw new BaseException(errData.errorCode, errData.message, undefined)
+            } else {
                 throw new InternalServerErrorException("An unknown error occurred.")
             }
         }
