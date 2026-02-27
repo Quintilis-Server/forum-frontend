@@ -7,6 +7,7 @@ import { CategoryHomeListPage } from "./pages/homePage/CategoryHomeListPage.tsx"
 import CategoryTypePage from "./pages/typePage/CategoryTypePage.tsx";
 
 import { NotFoundPage } from "./pages/NotFoundPage.tsx";
+import {TopicCreationPage} from "./pages/creationPage/TopicCreationPage.tsx";
 
 class App extends React.Component {
     render() {
@@ -18,7 +19,9 @@ class App extends React.Component {
                         <Route path="/authorized" element={<HomePage />} /> {/* Rota de callback que renderiza a Home (o UserProvider vai capturar o code) */}
 
                         <Route path="/categories" element={<CategoryHomeListPage />} />
-                        <Route path="/category/:slug" element={<CategoryTypePage />} />
+                        <Route path="/category/:id" element={<CategoryTypePage />} />
+
+                        <Route path="/topic/new" element={<TopicCreationPage/>}/>
 
                         <Route path="*" element={<NotFoundPage />} />
                     </Routes>

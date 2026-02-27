@@ -141,6 +141,12 @@ export class UserProvider extends BaseComponent<{ children: ReactNode }, UserCon
             if (success) {
                 // Se o callback foi bem sucedido, recarrega o status
                 // O token já foi salvo no localStorage pelo handleCallback
+                const returnUrl = localStorage.getItem("returnUrl");
+                if (returnUrl) {
+                    localStorage.removeItem("returnUrl");
+                    window.location.href = returnUrl;
+                    return; // Retorna para abortar a renderizacao enquanto o browser redireciona
+                }
             } else {
                 console.error("Falha ao processar callback de login");
             }
@@ -156,7 +162,7 @@ export class UserProvider extends BaseComponent<{ children: ReactNode }, UserCon
 
     private login = async () => {
         // Redireciona para o login do OAuth2
-        window.location.href = AuthService.getLoginUrl();
+        AuthService.redirectToLogin();
     }
 
     private logout = () => {

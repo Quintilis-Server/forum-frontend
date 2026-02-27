@@ -1,5 +1,5 @@
 import { BasePage } from "./BasePage.tsx";
-import type { BaseProps, PageState } from "../types/PageTypes.ts";
+import type {BaseProps, PageState} from "../types/PageTypes.ts";
 import { ListComponent } from "../components/ListComponent.tsx";
 import type { SortOption } from "../components/ListComponent.tsx";
 import * as React from "react";
@@ -7,14 +7,9 @@ import "../stylesheet/HomeListPageStyle.scss"
 
 export type { SortOption };
 
-export type BaseHomeListState<T> = PageState & {
-    items: T[];
-    currentPage: number;
-    totalPages: number;
-}
-
-export abstract class BaseHomeListPage<T extends object, P extends BaseProps, S extends BaseHomeListState<T>> extends BasePage<P, S> {
-    protected abstract getApiUrl(page: number): string;
+export abstract class BaseHomeListPage<T extends object, P extends BaseProps = BaseProps, S extends PageState = PageState> extends BasePage<P, S> {
+    // Agora retorna apenas a base da URL (ex: "/users/all")
+    protected abstract getApiUrl(): string;
     protected abstract getPageTitle(): string;
     protected abstract renderItem(item: T): React.ReactNode;
     protected abstract getSearchableText(item: T): string;
@@ -28,16 +23,9 @@ export abstract class BaseHomeListPage<T extends object, P extends BaseProps, S 
         return (item as Record<string, any>)[field] ?? "";
     }
 
-    protected getPageSize(): number {
-        return 10;
-    }
-
     public constructor(props: P) {
         super(props, {
-            items: [],
-            currentPage: 1,
-            totalPages: 1,
-            loading: true,
+            loading: false, // O loading agora acontece dentro do ListComponent
             title: ""
         } as unknown as S);
     }
@@ -45,23 +33,6 @@ export abstract class BaseHomeListPage<T extends object, P extends BaseProps, S 
     async componentDidMount() {
         super.componentDidMount();
         this.setState({ title: this.getPageTitle() });
-        await this.fetchPage(1);
-    }
-
-    protected async fetchPage(page: number) {
-        const result = await this.getFromApi<T[]>(this.getApiUrl(page));
-        if (result !== null) {
-            const items = result.data.data;
-            this.setState({
-                items: items,
-                currentPage: page,
-                totalPages: Math.max(1, Math.ceil(items.length / this.getPageSize()))
-            } as unknown as Pick<S, keyof S>);
-        }
-    }
-
-    private handlePageChange = (page: number) => {
-        this.fetchPage(page);
     }
 
     protected renderContent(): React.ReactNode {
@@ -71,16 +42,14 @@ export abstract class BaseHomeListPage<T extends object, P extends BaseProps, S 
                     <h1>{this.getPageTitle()}</h1>
                 </div>
 
+                {/* O ListComponent agora é independente */}
                 <ListComponent<T>
-                    items={this.state.items}
+                    apiUrl={this.getApiUrl()}
                     renderItem={(item) => this.renderItem(item)}
                     getItemLink={(item) => this.getItemLink(item)}
                     getSearchableText={(item) => this.getSearchableText(item)}
                     sortOptions={this.getSortOptions()}
                     getSortValue={(item, field) => this.getSortValue(item, field)}
-                    currentPage={this.state.currentPage}
-                    totalPages={this.state.totalPages}
-                    onPageChange={this.handlePageChange}
                 />
             </main>
         );

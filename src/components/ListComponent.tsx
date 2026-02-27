@@ -2,6 +2,8 @@ import * as React from "react";
 import "../stylesheet/ListComponentStyle.scss"
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faMagnifyingGlass} from "@fortawesome/free-solid-svg-icons";
+import {BaseComponent} from "./BaseComponent.tsx";
+import type {PageResponse} from "../types/ApiResponseType.ts";
 
 export type SortOption = {
     label: string;
@@ -9,111 +11,120 @@ export type SortOption = {
 }
 
 export type ListComponentProps<T> = {
-    items: T[];
+    apiUrl: string; // O componente agora sabe onde buscar os dados
     renderItem: (item: T) => React.ReactNode;
     getItemLink: (item: T) => string;
     getSearchableText: (item: T) => string;
     sortOptions?: SortOption[];
     getSortValue?: (item: T, field: string) => string | number;
-    currentPage?: number;
-    totalPages?: number;
-    onPageChange?: (page: number) => void;
+    className?: string;
 }
 
 type ListState<T> = {
-    filteredItems: T[];
+    items: T[];           // Itens vindos do servidor
+    loading: boolean;
+    currentPage: number;
+    totalPages: number;
     searchQuery: string;
     sortField: string;
     sortDirection: 'asc' | 'desc';
 }
 
-export class ListComponent<T extends object> extends React.PureComponent<ListComponentProps<T>, ListState<T>> {
-    state: ListState<T> = {
-        filteredItems: this.props.items,
-        searchQuery: "",
-        sortField: "",
-        sortDirection: 'asc',
+export class ListComponent<T extends object> extends BaseComponent<ListComponentProps<T>, ListState<T>> {
+    constructor(props: ListComponentProps<T>) {
+        super(props);
+        this.state = {
+            items: [],
+            loading: true,
+            currentPage: 1,
+            totalPages: 1,
+            searchQuery: "",
+            sortField: "",
+            sortDirection: 'asc'
+        } as ListState<T>;
     }
 
-    componentDidUpdate(prevProps: ListComponentProps<T>) {
-        if (prevProps.items !== this.props.items) {
-            const { searchQuery, sortField, sortDirection } = this.state;
-            let items = [...this.props.items];
+    async componentDidMount() {
+        await this.fetchData(1);
+    }
 
-            if (searchQuery.trim()) {
-                items = items.filter(item =>
-                    this.props.getSearchableText(item).toLowerCase().includes(searchQuery.toLowerCase())
-                );
+    private fetchData = async (page: number) =>{
+        await this.executeAsync(async ()=>{
+            const url = `${this.props.apiUrl}?page=${page}`
+            const result = await this.get<PageResponse<T>>(url)
+            if (result && result.data.success) {
+                const page = result.data.data
+                this.setState({
+                    items: page.items,
+                    totalPages: page.totalPages,
+                    currentPage: page.currentPage
+                })
             }
-
-            if (sortField) {
-                const getSortValue = this.props.getSortValue ?? ((item: T, field: string) => (item as Record<string, any>)[field] ?? "");
-                items.sort((a, b) => {
-                    const aVal = getSortValue(a, sortField);
-                    const bVal = getSortValue(b, sortField);
-                    const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-                    return sortDirection === 'asc' ? cmp : -cmp;
-                });
-            }
-
-            this.setState({ filteredItems: items });
-        }
+        })
     }
 
     private handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const query = e.target.value;
         const filtered = query.trim()
-            ? this.props.items.filter(item =>
+            ? this.state.items.filter(item =>
                 this.props.getSearchableText(item).toLowerCase().includes(query.toLowerCase())
             )
-            : [...this.props.items];
+            : [...this.state.items];
 
         this.setState({
             searchQuery: query,
-            filteredItems: filtered,
+            items: filtered,
         });
     }
 
     private handleSort = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const field = e.target.value;
+
         if (!field) {
-            this.setState({
-                sortField: "",
-                filteredItems: this.state.searchQuery
-                    ? this.state.filteredItems
-                    : [...this.props.items]
-            });
+            this.setState({ sortField: "" });
             return;
         }
 
+        const { items, sortDirection } = this.state;
         const getSortValue = this.props.getSortValue ?? ((item: T, f: string) => (item as Record<string, any>)[f] ?? "");
-        const sorted = [...this.state.filteredItems].sort((a, b) => {
+
+        const sorted = [...items].sort((a, b) => {
             const aVal = getSortValue(a, field);
             const bVal = getSortValue(b, field);
-            const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-            return this.state.sortDirection === 'asc' ? cmp : -cmp;
+
+            // Lógica de comparação genérica
+            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
         });
 
         this.setState({
             sortField: field,
-            filteredItems: sorted,
+            items: sorted,
         });
     }
 
     private toggleSortDirection = () => {
         const newDir = this.state.sortDirection === 'asc' ? 'desc' : 'asc';
-        const sorted = [...this.state.filteredItems].reverse();
+        const sorted = [...this.state.items].reverse();
 
         this.setState({
             sortDirection: newDir,
-            filteredItems: sorted,
+            items: sorted,
         });
     }
 
-    render() {
-        const { sortOptions = [], currentPage = 1, totalPages = 1, onPageChange } = this.props;
-        const { filteredItems, searchQuery, sortField, sortDirection } = this.state;
+    private handlePageChange = (page: number) => {
+        this.setState({ currentPage: page });
+        // Scroll para o topo da lista se desejar
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
+    render() {
+        const { sortOptions = [], className } = this.props;
+        // Pega tudo do STATE, pois o componente agora é autônomo
+        const { items, searchQuery, sortField, sortDirection, currentPage, totalPages } = this.state;
+        console.log(items)
         return (
             <div className="list-container">
                 <div className="list-toolbar">
@@ -149,9 +160,9 @@ export class ListComponent<T extends object> extends React.PureComponent<ListCom
                     )}
                 </div>
 
-                <div className="list">
-                    {filteredItems.length > 0 ? (
-                        filteredItems.map((item, index) => (
+                <div className={`list ${className}}`}>
+                    {items.length > 0 ? (
+                        items.map((item, index) => (
                             <a href={this.props.getItemLink(item)} className="item-list" key={index}>
                                 {this.props.renderItem(item)}
                             </a>
@@ -163,12 +174,12 @@ export class ListComponent<T extends object> extends React.PureComponent<ListCom
                     )}
                 </div>
 
-                {totalPages > 1 && onPageChange && (
+                {totalPages > 1 && (
                     <div className="pagination">
                         <button
                             className="pagination-btn"
                             disabled={currentPage <= 1}
-                            onClick={() => onPageChange(currentPage - 1)}
+                            onClick={() => this.handlePageChange(currentPage - 1)}
                         >
                             ← Anterior
                         </button>
@@ -178,7 +189,7 @@ export class ListComponent<T extends object> extends React.PureComponent<ListCom
                                 <button
                                     key={page}
                                     className={`pagination-page ${page === currentPage ? 'active' : ''}`}
-                                    onClick={() => onPageChange(page)}
+                                    onClick={() => this.handlePageChange(page)}
                                 >
                                     {page}
                                 </button>
@@ -188,7 +199,7 @@ export class ListComponent<T extends object> extends React.PureComponent<ListCom
                         <button
                             className="pagination-btn"
                             disabled={currentPage >= totalPages}
-                            onClick={() => onPageChange(currentPage + 1)}
+                            onClick={() => this.handlePageChange(currentPage + 1)}
                         >
                             Próxima →
                         </button>

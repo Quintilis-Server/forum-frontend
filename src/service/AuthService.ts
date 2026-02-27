@@ -184,6 +184,12 @@ export class AuthService {
         window.location.href = `${AUTH_URL}/logout?redirect_uri=${window.location.origin}`;
     }
 
+    static redirectToLogin(): void {
+        const returnUrl = window.location.pathname + window.location.search;
+        localStorage.setItem("returnUrl", returnUrl);
+        window.location.href = this.getLoginUrl();
+    }
+
     static getAccessToken(): string | null {
         return localStorage.getItem("accessToken");
     }
@@ -291,11 +297,13 @@ axios.interceptors.response.use(
                 return axios(originalRequest);
             } else {
                 processQueue(error);
-                return Promise.reject(error);
+                AuthService.redirectToLogin();
+                return new Promise(() => { }); // Retorna Promise pendente para evitar erros sucessivos no console durante o redirect
             }
         } catch (refreshError) {
             processQueue(refreshError);
-            return Promise.reject(refreshError);
+            AuthService.redirectToLogin();
+            return new Promise(() => { });
         } finally {
             isRefreshing = false;
         }

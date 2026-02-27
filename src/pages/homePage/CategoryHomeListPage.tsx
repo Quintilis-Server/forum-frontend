@@ -1,8 +1,8 @@
-import { BaseHomeListPage, type BaseHomeListState, type SortOption } from "../BaseHomeListPage.tsx";
+import { BaseHomeListPage, type SortOption } from "../BaseHomeListPage.tsx";
 import type { Category } from "../../types/ForumTypes.ts";
-import type { BaseProps } from "../../types/PageTypes.ts";
+import {API_FORUM_ROUTES} from "../../Consts.ts";
 
-export class CategoryHomeListPage extends BaseHomeListPage<Category, BaseProps, BaseHomeListState<Category>> {
+export class CategoryHomeListPage extends BaseHomeListPage<Category> {
 
     protected renderItem(item: Category): React.ReactNode {
         return (
@@ -24,7 +24,7 @@ export class CategoryHomeListPage extends BaseHomeListPage<Category, BaseProps, 
     }
 
     protected getItemLink(item: Category): string {
-        return `/category/${item.slug}`;
+        return `/category/${item.id}`;
     }
 
     protected getSortOptions(): SortOption[] {
@@ -35,8 +35,8 @@ export class CategoryHomeListPage extends BaseHomeListPage<Category, BaseProps, 
         ];
     }
 
-    protected getApiUrl(page: number): string {
-        return `/forum/category/all?page=${page}`
+    protected getApiUrl(): string {
+        return `${API_FORUM_ROUTES}/category/all`
     }
 
     protected getPageTitle(): string {

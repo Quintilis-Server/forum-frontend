@@ -1,4 +1,6 @@
-export interface Category{
+import type {UserSummaryDTO} from "./User.ts";
+
+export interface Category {
     id: string
     title: string
     slug: string
@@ -7,11 +9,16 @@ export interface Category{
     created_at: Date
     topics: Topic[]
 }
-export interface Topic{
+export interface Topic {
     id: string
-    topic_id: string
-    author_id: string;
+    title: string
+    slug: string
+    content: string
+    views: number
+    createdAt: string
+    author: UserSummaryDTO
 }
-export interface Post{
+
+export interface Post {
 
 }

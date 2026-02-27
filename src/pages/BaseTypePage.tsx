@@ -18,13 +18,21 @@ export abstract class BaseTypePage<T, P extends BaseProps, S extends BaseTypeSta
 
     async componentDidMount() {
         super.componentDidMount();
-        const result = await this.getFromApi<T>(this.getApiUrl())
-        if (result === null || !result.data.success) {
-            return this.setState({ err: BaseException.fromResponse(result.data) })
-        }
-        this.setState({
-            title: this.getPageTitle(result.data.data),
-            item: result.data.data
+        this.executeAsync(async () => {
+            const result = await this.getFromApi<T>(this.getApiUrl());
+
+            if (result === null || !result.data.success) {
+                this.setState({err: BaseException.fromResponse(result.data)});
+                return null;
+            }
+
+            // O item é setado no estado ENQUANTO o loading ainda é true
+            this.setState({
+                title: this.getPageTitle(result.data.data),
+                item: result.data.data
+            });
+
+            return result;
         });
     }
 

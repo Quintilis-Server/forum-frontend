@@ -25,7 +25,21 @@ export abstract class BasePage<P extends BaseProps, S extends PageState> extends
     }
 
     componentDidMount() {
-        document.title = `${this.state.title} - Quintilis`
+        this.updateDocumentTitle();
+    }
+
+    componentDidUpdate(_prevProps: P, prevState: S) {
+        if (prevState.title !== this.state.title) {
+            this.updateDocumentTitle();
+        }
+    }
+
+    private updateDocumentTitle() {
+        if (this.state.title) {
+            document.title = `${this.state.title} - Quintilis`;
+        } else {
+            document.title = "Quintilis";
+        }
     }
 
     private dismissError = () => {

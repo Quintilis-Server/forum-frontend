@@ -1,4 +1,5 @@
 import type {ApiResponseType, ErrorCode} from "../types/ApiResponseType.ts";
+import type {AxiosError} from "axios";
 
 export class BaseException extends Error {
     protected readonly errCode: ErrorCode
@@ -29,6 +30,19 @@ export class BaseException extends Error {
         return new BaseException(
             apiResponse.errorCode,
             apiResponse.message,
+        )
+    }
+
+    public static fromAxiosError<T>(axiosError: AxiosError<ApiResponseType<T>>): BaseException {
+        if(axiosError.response){
+            return new BaseException(
+                axiosError.response?.data.errorCode,
+                axiosError.response?.data.message
+            )
+        }
+        return new BaseException(
+            axiosError.code as ErrorCode,
+            axiosError.message
         )
     }
 
