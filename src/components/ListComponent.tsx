@@ -5,9 +5,9 @@ import {faMagnifyingGlass} from "@fortawesome/free-solid-svg-icons";
 import {BaseComponent} from "./BaseComponent.tsx";
 import type {PageResponse} from "../types/ApiResponseType.ts";
 
-export type SortOption = {
+export type SortOption<T> = {
     label: string;
-    field: string;
+    field: Extract<keyof T, string>;
 }
 
 export type ListComponentProps<T> = {
@@ -15,12 +15,15 @@ export type ListComponentProps<T> = {
     renderItem: (item: T) => React.ReactNode;
     getItemLink: (item: T) => string;
     getSearchableText: (item: T) => string;
-    sortOptions?: SortOption[];
+    withPage?: boolean;
+    sortOptions?: SortOption<T>[];
     getSortValue?: (item: T, field: string) => string | number;
     className?: string;
+    itemClassName?: string;
 }
 
 type ListState<T> = {
+    originalItems: T[];   // Itens originais, para restaurar a busca
     items: T[];           // Itens vindos do servidor
     loading: boolean;
     currentPage: number;
@@ -30,10 +33,11 @@ type ListState<T> = {
     sortDirection: 'asc' | 'desc';
 }
 
-export class ListComponent<T extends object> extends BaseComponent<ListComponentProps<T>, ListState<T>> {
+export class ListComponent<T extends object, R extends object> extends BaseComponent<ListComponentProps<T>, ListState<T>> {
     constructor(props: ListComponentProps<T>) {
         super(props);
         this.state = {
+            originalItems: [],
             items: [],
             loading: true,
             currentPage: 1,
@@ -45,20 +49,44 @@ export class ListComponent<T extends object> extends BaseComponent<ListComponent
     }
 
     async componentDidMount() {
+        // console.log(this.props.withPage)
         await this.fetchData(1);
+    }
+
+    private isPageResponse(data: any): data is PageResponse<T> {
+        return data && typeof data === 'object' && 'content' in data && 'totalPages' in data;
     }
 
     private fetchData = async (page: number) =>{
         await this.executeAsync(async ()=>{
-            const url = `${this.props.apiUrl}?page=${page}`
-            const result = await this.get<PageResponse<T>>(url)
+            const url = new URL(this.props.apiUrl)
+            if(this.props.withPage) url.searchParams.set("page", (page - 1).toString())
+            if (this.state.sortField) {
+                url.searchParams.append("sort", `${this.state.sortField},${this.state.sortDirection}`);
+            }
+            const result = await this.get<R>(url)
             if (result && result.data.success) {
-                const page = result.data.data
-                this.setState({
-                    items: page.items,
-                    totalPages: page.totalPages,
-                    currentPage: page.currentPage
-                })
+                const payload = result.data.data;
+
+                console.log(payload, this.isPageResponse(payload))
+                if (this.isPageResponse(payload)) {
+                    // É PAGINADO! Lemos o "content" e as variáveis de página
+                    this.setState({
+                        originalItems: payload.content,
+                        items: payload.content,
+                        totalPages: payload.totalPages,
+                        currentPage: payload.number + 1 // Converte de volta para base 1 pra UI
+                    });
+                } else if (Array.isArray(payload)) {
+                    // É UMA LISTA SIMPLES! (Array flat)
+                    this.setState({
+                        originalItems: payload,
+                        items: payload,
+                        totalPages: 1,
+                        currentPage: 1
+                    });
+                }
+
             }
         })
     }
@@ -66,10 +94,10 @@ export class ListComponent<T extends object> extends BaseComponent<ListComponent
     private handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const query = e.target.value;
         const filtered = query.trim()
-            ? this.state.items.filter(item =>
+            ? this.state.originalItems.filter(item =>
                 this.props.getSearchableText(item).toLowerCase().includes(query.toLowerCase())
             )
-            : [...this.state.items];
+            : [...this.state.originalItems];
 
         this.setState({
             searchQuery: query,
@@ -77,54 +105,59 @@ export class ListComponent<T extends object> extends BaseComponent<ListComponent
         });
     }
 
-    private handleSort = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    private handleSort = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         const field = e.target.value;
 
-        if (!field) {
-            this.setState({ sortField: "" });
-            return;
-        }
+        // if (!field) {
+        //     this.setState({ sortField: "" });
+        //     return;
+        // }
 
-        const { items, sortDirection } = this.state;
-        const getSortValue = this.props.getSortValue ?? ((item: T, f: string) => (item as Record<string, any>)[f] ?? "");
+        this.setState({sortField: field?? ""}, async () =>{
+            await this.fetchData(this.state.currentPage)
+        })
 
-        const sorted = [...items].sort((a, b) => {
-            const aVal = getSortValue(a, field);
-            const bVal = getSortValue(b, field);
-
-            // Lógica de comparação genérica
-            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-        this.setState({
-            sortField: field,
-            items: sorted,
-        });
+        //
+        // const { items, sortDirection } = this.state;
+        // const getSortValue = this.props.getSortValue ?? ((item: T, f: string) => (item as Record<string, any>)[f] ?? "");
+        //
+        // const sorted = [...items].sort((a, b) => {
+        //     const aVal = getSortValue(a, field);
+        //     const bVal = getSortValue(b, field);
+        //
+        //     // Lógica de comparação genérica
+        //     if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        //     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        //     return 0;
+        // });
+        //
+        // this.setState({
+        //     sortField: field,
+        //     items: sorted,
+        // });
     }
 
     private toggleSortDirection = () => {
         const newDir = this.state.sortDirection === 'asc' ? 'desc' : 'asc';
-        const sorted = [...this.state.items].reverse();
+        // const sorted = [...this.state.items].reverse();
 
-        this.setState({
-            sortDirection: newDir,
-            items: sorted,
+        this.setState({ sortDirection: newDir }, async () => {
+            await this.fetchData(this.state.currentPage);
         });
     }
 
-    private handlePageChange = (page: number) => {
-        this.setState({ currentPage: page });
+    private handlePageChange = async (page: number) => {
+        // this.setState({ currentPage: page });
+        await this.fetchData(page);
         // Scroll para o topo da lista se desejar
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     render() {
-        const { sortOptions = [], className } = this.props;
+        const { sortOptions = [], className, itemClassName } = this.props;
         // Pega tudo do STATE, pois o componente agora é autônomo
         const { items, searchQuery, sortField, sortDirection, currentPage, totalPages } = this.state;
-        console.log(items)
+
         return (
             <div className="list-container">
                 <div className="list-toolbar">
@@ -160,10 +193,10 @@ export class ListComponent<T extends object> extends BaseComponent<ListComponent
                     )}
                 </div>
 
-                <div className={`list ${className}}`}>
+                <div className={`list ${className ? className : ""}`}>
                     {items.length > 0 ? (
                         items.map((item, index) => (
-                            <a href={this.props.getItemLink(item)} className="item-list" key={index}>
+                            <a href={this.props.getItemLink(item)} className={`list-item ${itemClassName ? itemClassName : ""}`} key={index}>
                                 {this.props.renderItem(item)}
                             </a>
                         ))

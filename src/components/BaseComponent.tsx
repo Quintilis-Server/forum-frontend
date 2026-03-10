@@ -1,7 +1,7 @@
 import type { BaseState } from "../types/PageTypes.ts";
 import * as React from "react";
 import axios, { AxiosError, type AxiosResponse } from "axios";
-import type { ApiResponseType } from "../types/ApiResponseType.ts";
+import {type ApiResponseType, ErrorCode} from "../types/ApiResponseType.ts";
 import { BaseException } from "../exceptions/BaseException.ts";
 import { InternalServerErrorException } from "../exceptions/InternalServerErrorException.ts";
 import { EncryptException } from "../exceptions/EncryptException.ts";
@@ -27,15 +27,23 @@ export class BaseComponent<P = object, S extends BaseState = BaseState> extends 
         }
     }
 
-    protected async get<T>(url: string, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
+    protected async get<T>(url: string|URL, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
         const headers = {
             ...header,
         }
-        this.startLoading();
-        try {
-            return await axios.get<ApiResponseType<T>>(url, { headers });
+        this.startLoading()
+        try{
+            return await axios.get<ApiResponseType<T>>(url.toString(), { headers })
+        } catch (e) {
+            console.log(axios.isAxiosError(e)) //TODO fazer o handle de erro funcionar
+            if (axios.isAxiosError(e)) {
+                console.error(e)
+                throw BaseException.fromAxiosError<T>(e);
+            } else {
+                throw new BaseException(ErrorCode.UNKNOWN_ERROR, "Erro na requisição")
+            }
         } finally {
-            this.stopLoading();
+            this.stopLoading()
         }
     }
 
@@ -52,11 +60,42 @@ export class BaseComponent<P = object, S extends BaseState = BaseState> extends 
             "Content-Type": "application/json",
             ...header,
         }
-        this.startLoading();
-        try {
-            return await axios.post(url, body, { headers });
+        this.startLoading()
+        try{
+            return await axios.post(url, body, { headers })
+        } catch (e) {
+            if (axios.isAxiosError(e)) {
+                // A partir desta linha, o TypeScript sabe que 'error' é do tipo AxiosError!
+
+                throw BaseException.fromAxiosError<T>(e);
+            } else {
+                // 2. Não é do Axios (pode ser um TypeError, erro de sintaxe, etc.)
+                throw new BaseException(ErrorCode.UNKNOWN_ERROR, "Erro na requisição")
+            }
         } finally {
-            this.stopLoading();
+            this.stopLoading()
+        }
+    }
+
+    protected async put<T, B>(url: string, body: B, header: object | null = null): Promise<AxiosResponse<ApiResponseType<T>>> {
+        const headers = {
+            "Content-Type": "application/json",
+            ...header,
+        }
+        this.startLoading()
+        try {
+            return await axios.put(url, body, {headers})
+        } catch (e) {
+            if (axios.isAxiosError(e)) {
+                // A partir desta linha, o TypeScript sabe que 'error' é do tipo AxiosError!
+
+                throw BaseException.fromAxiosError<T>(e);
+            } else {
+                // 2. Não é do Axios (pode ser um TypeError, erro de sintaxe, etc.)
+                throw new BaseException(ErrorCode.UNKNOWN_ERROR, "Erro na requisição")
+            }
+        }finally {
+            this.stopLoading()
         }
     }
 

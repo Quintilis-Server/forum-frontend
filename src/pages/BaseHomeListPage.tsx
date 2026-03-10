@@ -4,6 +4,7 @@ import { ListComponent } from "../components/ListComponent.tsx";
 import type { SortOption } from "../components/ListComponent.tsx";
 import * as React from "react";
 import "../stylesheet/HomeListPageStyle.scss"
+import type { PageResponse } from "../types/ApiResponseType.ts";
 
 export type { SortOption };
 
@@ -15,7 +16,7 @@ export abstract class BaseHomeListPage<T extends object, P extends BaseProps = B
     protected abstract getSearchableText(item: T): string;
     protected abstract getItemLink(item: T): string;
 
-    protected getSortOptions(): SortOption[] {
+    protected getSortOptions(): SortOption<T>[] {
         return [];
     }
 
@@ -43,7 +44,7 @@ export abstract class BaseHomeListPage<T extends object, P extends BaseProps = B
                 </div>
 
                 {/* O ListComponent agora é independente */}
-                <ListComponent<T>
+                <ListComponent<T, PageResponse<T>>
                     apiUrl={this.getApiUrl()}
                     renderItem={(item) => this.renderItem(item)}
                     getItemLink={(item) => this.getItemLink(item)}

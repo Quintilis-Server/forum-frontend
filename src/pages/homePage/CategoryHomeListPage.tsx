@@ -4,7 +4,7 @@ import {API_FORUM_ROUTES} from "../../Consts.ts";
 
 export class CategoryHomeListPage extends BaseHomeListPage<Category> {
 
-    protected renderItem(item: Category): React.ReactNode {
+    override renderItem(item: Category): React.ReactNode {
         return (
             <>
                 <div>
@@ -27,7 +27,7 @@ export class CategoryHomeListPage extends BaseHomeListPage<Category> {
         return `/category/${item.id}`;
     }
 
-    protected getSortOptions(): SortOption[] {
+    protected getSortOptions(): SortOption<Category>[] {
         return [
             { label: "Título", field: "title" },
             { label: "Data de criação", field: "created_at" },
