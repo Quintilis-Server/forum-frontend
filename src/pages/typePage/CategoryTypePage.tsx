@@ -5,6 +5,7 @@ import * as React from "react";
 import { ListComponent } from "../../components/ListComponent.tsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
+import type {PageResponse} from "../../types/ApiResponseType.ts";
 
 type Params = {
     id: string
@@ -29,7 +30,7 @@ class CategoryTypePage extends BaseTypePage<Category, Props, BaseTypeState<Categ
                     <p>{item.description}</p>
                     <a href="/topic/new" className="new-button">Criar <FontAwesomeIcon icon={faPlus} /></a>
                 </div>
-                <ListComponent<Topic>
+                <ListComponent<Topic, PageResponse<Topic>>
                     renderItem={(topic) => (
                         <div style={{
                             display: 'flex',
